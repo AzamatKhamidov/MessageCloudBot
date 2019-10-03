@@ -13,7 +13,7 @@ webhook = webhook
 polling = False
 host = '127.0.0.1'
 channel_id = -1001314753712
-mongo_db = pymongo.MongoClient('mongodb+srv://bot:998901888199@messagecloudbot-otwwr.azure.mongodb.net/admin?retryWrites=true&w=majority')
+mongo_db = pymongo.MongoClient()
 main_data = mongo_db['MessageCloudBot']
 users = main_data['users']
 messages = main_data['messages']
