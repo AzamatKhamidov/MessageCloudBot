@@ -1,8 +1,17 @@
-import telebot, config, strings, database, module
-
+import telebot, config, strings, database, module, requests, logging, eventlet, json, sys
+from threading import Thread, Lock, Timer
+from flask_socketio import SocketIO, disconnect
+from flask import Flask, render_template, request, Response, abort, jsonify
 
 bot = telebot.TeleBot(config.token)
 bot_username = bot.get_me().username
+logging.basicConfig(format='%(asctime)s (%(filename)s:%(lineno)d) %(levelname)s:%(name)s:"%(message)s"',
+                    datefmt="%Y-%m-%d %H:%M:%S")
+logger = logging.getLogger(__name__)
+logger.setLevel(logging.DEBUG)
+app = Flask(__name__)
+socketio = SocketIO(app, async_mode='eventlet', logger=False, engineio_logger=False)
+
 
 @bot.message_handler(commands=['start'])
 def start_handler(message):
@@ -50,4 +59,55 @@ def message_handler(message):
 	bot.send_message(message.chat.id, url, disable_web_page_preview=True)
 
 config.app.start()
-bot.polling()
+
+@app.route('/', methods=['POST'])
+def web_hook():
+	if request.headers.get('content-type') == 'application/json':
+		data = request.get_data().decode("utf-8")
+		update = telebot.types.Update.de_json(data)
+		user_id = 0
+		try:
+			user_id = update.message.from_user.id
+		except:
+			pass
+		if user_id == 777000:
+			return ''
+		if update.message:
+		    bot.process_new_messages([update.message])
+		if update.callback_query:
+		    bot.process_new_callback_query([update.callback_query])
+		if update.inline_query:
+		    bot.process_new_inline_query([update.inline_query])
+		if update.channel_post:
+			bot.process_new_channel_posts([update.channel_post])
+		if update.edited_channel_post:
+			bot.process_new_edited_channel_posts([update.edited_channel_post])
+		if update.chosen_inline_result:
+			bot.process_new_chosen_inline_query([update.chosen_inline_result])
+		return ''
+	abort(403)
+
+
+def bot_polling():
+	bot.remove_webhook()
+	bot.polling()
+
+
+def main(argv):
+	if config.polling:
+		logger.info('starting polling...')
+		thread = Thread(target=bot_polling)
+		thread.start()
+	else:
+		logging.info('setting webhook...')
+		bot.remove_webhook()
+		bot.set_webhook(config.webhook)
+	me = bot.get_me()
+	logger.info('Me: %s @%s', me.first_name, me.username)
+	# init_commands()
+	socketio.run(app, host=config.host, port=config.port, use_reloader=False,
+	             debug=False)
+
+
+if __name__ == '__main__':
+    main(sys.argv[1:])
